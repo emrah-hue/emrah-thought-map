@@ -1,0 +1,8 @@
+"use client";
+import type { PublicGraphNode } from "@/lib/graph/types";
+export function DetailPanel({node,neighbors,onSelect,onClose}:{node?:PublicGraphNode;neighbors:PublicGraphNode[];onSelect:(id:string)=>void;onClose:()=>void}){
+ if(!node)return <aside className="panel panel-empty" aria-label="Bilgi paneli"><div><span className="panel-number">KEŞFET</span><h2>Bağlantıları takip edin.</h2><p className="summary">Bir düşünceyi seçerek açıklamasını ve temas ettiği diğer kavramları görün.</p></div><p className="hint">Yakınlaştırmak için kaydırın · Taşımak için düğümü sürükleyin</p></aside>;
+ const topics=neighbors.filter(n=>n.nodeClass==="topic"), knowledge=neighbors.filter(n=>n.nodeClass==="knowledge");
+ const list=(title:string,items:PublicGraphNode[])=><section className="related"><h3>{title}</h3>{items.map(n=><button key={n.id} onClick={()=>onSelect(n.id)}>{n.label} <span aria-hidden="true">↗</span></button>)}</section>;
+ return <aside className="panel" aria-label={`${node.label} ayrıntıları`}><button className="close" onClick={onClose} aria-label="Paneli kapat">×</button><span className="panel-number">{node.nodeClass==="topic"?"KONU":"BİLGİ VARLIĞI"}</span><h2>{node.label}</h2><div className="panel-meta"><span>{node.subtype}</span>{node.stage&&<span>{node.stage}</span>}</div><p className="summary">{node.summary||"Bu kayıt için henüz kamusal bir özet eklenmedi."}</p>{topics.length>0&&list("İlişkili Konular",topics)}{knowledge.length>0&&list("İlişkili Kavramlar",knowledge)}{node.resources?.length?<section className="related"><h3>Kaynaklar</h3>{node.resources.map(r=><button key={r.id}>{r.title}</button>)}</section>:null}<p className="hint">Ağ üzerinde ilerlemek için ilişkili bir düşünce seçin.</p></aside>
+}
