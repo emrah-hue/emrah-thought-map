@@ -7,4 +7,4 @@ export type PublicGraphNode = { id:string; label:string; nodeClass:NodeClass; su
 export type PublicGraphEdge = { id:string; source:string; target:string; relation:Relation };
 export type PublicGraph = { nodes:PublicGraphNode[]; edges:PublicGraphEdge[]; generatedAt:string };
 
-export type SourceNode = Omit<PublicGraphNode,"size"> & { visibility:string; topicIds?:string[]; relatedIds?:string[] };
+export type SourceNode = Omit<PublicGraphNode,"size"> & { topicIds?:string[]; relatedIds?:string[] };
