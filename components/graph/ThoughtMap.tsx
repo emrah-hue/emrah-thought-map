@@ -1,7 +1,10 @@
 "use client";
 import { useCallback,useMemo,useRef,useState } from "react";
+import dynamic from "next/dynamic";
 import type { GraphFilter,PublicGraph } from "@/lib/graph/types";
-import { DetailPanel } from "./DetailPanel";import { GraphFilters } from "./GraphFilters";import { Search } from "./Search";import { GraphCanvas,type GraphCanvasHandle } from "./GraphCanvas";
+import { DetailPanel } from "./DetailPanel";import { GraphFilters } from "./GraphFilters";import { Search } from "./Search";import type { GraphCanvasHandle } from "./GraphCanvas";
+
+const GraphCanvas=dynamic(()=>import("./GraphCanvas").then(module=>module.GraphCanvas),{ssr:false});
 export function ThoughtMap({data}:{data:PublicGraph}){
  const [selected,setSelected]=useState<string>();const [filter,setFilter]=useState<GraphFilter>("all");const graphRef=useRef<GraphCanvasHandle|null>(null);
  const select=useCallback((id?:string)=>{setSelected(id);if(id)requestAnimationFrame(()=>graphRef.current?.focus(id))},[]);
