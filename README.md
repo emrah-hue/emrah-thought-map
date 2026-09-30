@@ -43,9 +43,33 @@ Property adları ve tipleri birebir şöyledir:
 
 Kamusal select değeri tam olarak `Kamusal`; arşiv aşaması tam olarak `Arşiv` olmalıdır. Relation property'lerinin integration tarafından okunabildiğini doğrulayın.
 
-## Senkronizasyon ve deploy
+## Preview ve Vercel deploy
 
-Standart Node.js destekleyen bir platforma deploy edin, environment variable'ları ekleyin ve domain'i bağlayın. Her gün aşağıdaki isteği çalıştırın:
+Notion bağlantısını açmadan production görünümünü yerelde incelemek için:
+
+```bash
+npm install
+npm run preview
+```
+
+Preview, uygulamayı `GRAPH_SOURCE=mock` ile production modunda derler ve tüm ağ arayüzlerinden `http://localhost:3000` adresinde sunar. Uzak bir geliştirme ortamında port `3000` için ortamın **Ports / Forwarded ports** ekranından geçici public URL oluşturabilirsiniz.
+
+Kalıcı olmayan bir Vercel Preview URL almak için en kısa akış:
+
+1. Bu repository'nin `main` branch'ini GitHub, GitLab veya Bitbucket'a push edin.
+2. Vercel'de **Add New → Project** ile repository'yi import edin; framework ayarı otomatik olarak **Next.js** seçilir.
+3. Environment Variables bölümünde Preview, Development ve Production için `GRAPH_SOURCE=mock` ekleyin. Şimdilik Notion değişkenlerini eklemeyin.
+4. **Deploy** seçeneğine basın. İlk deployment bir URL üretir; sonraki pull request'ler bağımsız Preview URL'leri alır.
+
+Vercel hesabı önceden doğrulanmışsa aynı işlem CLI ile repository kökünden de başlatılabilir:
+
+```bash
+npx vercel --yes --env GRAPH_SOURCE=mock
+```
+
+Komutun döndürdüğü `https://…vercel.app` adresi deployment preview'ıdır. Production'a yükseltmek istediğinizde ayrıca `npx vercel --prod --yes --env GRAPH_SOURCE=mock` çalıştırın.
+
+Notion senkronizasyonuna daha sonra geçildiğinde gerekli server-only değişkenlerini Vercel'e ekleyin ve günlük olarak aşağıdaki isteği çalıştırın:
 
 ```bash
 curl -X POST -H "Authorization: Bearer $CRON_SECRET" https://thoughtmap.example.com/api/revalidate-graph

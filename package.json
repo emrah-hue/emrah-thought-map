@@ -11,7 +11,8 @@
     "start": "next start",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
-    "test": "node --test --import tsx 'lib/**/*.test.ts'"
+    "test": "node --test --import tsx 'lib/**/*.test.ts'",
+    "preview": "GRAPH_SOURCE=mock npm run build && GRAPH_SOURCE=mock next start -H 0.0.0.0"
   },
   "dependencies": {
     "@notionhq/client": "2.2.15",
