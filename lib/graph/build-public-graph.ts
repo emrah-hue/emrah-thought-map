@@ -19,6 +19,10 @@ export function buildPublicGraph(source:SourceNode[]):PublicGraph {
   }
   const degree=new Map<string,number>();
   edges.forEach(e=>{degree.set(e.source,(degree.get(e.source)??0)+1);degree.set(e.target,(degree.get(e.target)??0)+1)});
-  const nodes=publicNodes.map(({visibility:_,topicIds:__,relatedIds:___,...node})=>({...node,size:nodeSize(node.nodeClass,node.weight,node.stage,degree.get(node.id)??0)}));
+  const nodes=publicNodes.map(node=>({
+    id:node.id,label:node.label,nodeClass:node.nodeClass,subtype:node.subtype,summary:node.summary,
+    stage:node.stage,weight:node.weight,resourceCount:node.resourceCount,resources:node.resources,
+    size:nodeSize(node.nodeClass,node.weight,node.stage,degree.get(node.id)??0),
+  }));
   return {nodes,edges,generatedAt:new Date().toISOString()};
 }
