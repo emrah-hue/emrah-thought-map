@@ -1,6 +1,6 @@
 import type { SourceNode } from "./types";
-const topic=(id:string,label:string,subtype:string,summary:string,weight=3):SourceNode=>({id,label,nodeClass:"topic",subtype,summary,weight,visibility:"Kamusal"});
-const knowledge=(id:string,label:string,subtype:string,stage:string,summary:string,weight:number,topicIds:string[],relatedIds:string[]):SourceNode=>({id,label,nodeClass:"knowledge",subtype,stage,summary,weight,topicIds,relatedIds,visibility:"Kamusal"});
+const topic=(id:string,label:string,subtype:string,summary:string,weight=3):SourceNode=>({id,label,nodeClass:"topic",subtype,summary,weight});
+const knowledge=(id:string,label:string,subtype:string,stage:string,summary:string,weight:number,topicIds:string[],relatedIds:string[]):SourceNode=>({id,label,nodeClass:"knowledge",subtype,stage,summary,weight,topicIds,relatedIds});
 export const mockSource:SourceNode[]=[
  topic("t-system","Sistem Düşüncesi","Bakış Açısı","Parçaları tek başına değil, aralarındaki ilişkiler ve geri bildirim döngüleriyle birlikte okuma disiplini.",5),
  topic("t-leadership","Liderlik","Yetkinlik","Belirsizlik içinde yön, anlam ve hareket üreten kolektif kapasite.",4),
