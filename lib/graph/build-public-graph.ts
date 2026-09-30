@@ -1,9 +1,8 @@
 import type { PublicGraph, PublicGraphEdge, SourceNode } from "./types";
 import { nodeSize } from "./visual-rules";
 
-const PUBLIC="Kamusal";
 export function buildPublicGraph(source:SourceNode[]):PublicGraph {
-  const publicNodes=source.filter(n=>n.visibility===PUBLIC && n.stage!=="Arşiv");
+  const publicNodes=source.filter(n=>n.stage!=="Arşiv");
   const ids=new Set(publicNodes.map(n=>n.id));
   const edges:PublicGraphEdge[]=[]; const seen=new Set<string>();
   const add=(source:string,target:string,relation:"topic"|"related")=>{
