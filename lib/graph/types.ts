@@ -6,7 +6,7 @@ export type Relation =
   | "methodology-project"
   | "methodology-relationship";
 export type MethodologyRelationType = "Besler" | "Kapsar" | "Tamamlar" | "Derinleştirir";
-export type GraphFilter = "all" | "interest-areas" | "topics" | "methodologies" | "projects" | "current";
+export type GraphFilter = "all" | "interest-areas" | "topics" | "methodologies" | "projects";
 
 type BaseEntity = { id: string; title: string; summary: string; hidden?: boolean };
 export type InterestArea = BaseEntity & { topicIds: string[] };
