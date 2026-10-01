@@ -1,58 +1,74 @@
 # Notion-Driven Thought Map
 
-Notion'daki **Konular** ve **Bilgi Ağı** veritabanlarını, sunucuda güvenli bir public DTO'ya dönüştürüp Sigma.js ile keşfedilebilir bir ağa çeviren bağımsız Next.js uygulaması.
+Notion'daki Second Brain kayıtlarını sunucuda normalize edilmiş, güvenli bir public graph DTO'suna dönüştürüp Sigma.js ile keşfedilebilir bir düşünce haritası olarak sunan Next.js uygulaması.
 
 ## Mimari
 
-`Notion → server-only adapter → public güvenlik filtresi → graph DTO → Graphology → ForceAtlas2 → Sigma.js`
+Canonical yapı:
 
-- Notion sorgusu daha kaynaktayken yalnız `Görünürlük = Kamusal` kayıtları ister; graph builder ikinci bir allow-list kontrolü yapar.
-- `Projeler` alanı okunmaz ve DTO'ya taşınmaz. Private/arşiv node'lar ile bunlara giden edge'ler builder'da elenir.
-- Graph verisi Next.js cache içinde 24 saat tutulur. Korumalı endpoint bağımsız cron servislerinden çağrılabilir.
-- Renderer yalnız normalize edilmiş `PublicGraph` tipini bilir; Notion property yapısını bilmez.
+`İlgi Alanları → Konular → Metodolojiler → Projeler`
+
+Buna ek olarak ayrı **Metodoloji İlişkileri** veri kaynağı, yönlü `Metodoloji → Metodoloji` bağları üretir. Uygulama yalnız en yakın anlamlı katmanlar arasında şu edge'leri kurar:
+
+- İlgi Alanı → Konu
+- Konu → Metodoloji
+- Konu → Proje
+- Metodoloji → Proje
+- Metodoloji → Metodoloji (`Besler`, `Kapsar`, `Tamamlar`, `Derinleştirir`)
+
+Veri akışı: `Notion → server-only fetcher'lar → normalize edilmiş tipler → gizlilik/arşiv filtresi → public graph DTO → Graphology → ForceAtlas2 → Sigma.js`.
+
+Graph'ta dört node tipi bulunur: **İlgi Alanı**, **Konu**, **Metodoloji** ve **Proje**. Boyutlar önem puanına göre değil node tipine göre belirlenir. Notion'daki `Ad` başlık, `Özet` ise canonical public açıklamadır.
+
+## Public-by-default ve arşiv kuralları
+
+Tüm kayıtlar, **Projeler dahil**, varsayılan olarak public'tir. İsteğe bağlı `Gizli` checkbox'ı varsa ve `true` ise kayıt public graph'a, client props'a veya aramaya aktarılmaz. `Gizli` yoksa ya da `false` ise kayıt public'tir.
+
+`Aşama = Arşiv` olan metodolojiler aktif haritadan çıkarılır. Bu bir yaşam döngüsü kuralıdır; gizlilik anlamına gelmez. Elenen düğümlere bağlı edge'ler de graph builder tarafından kaldırılır.
 
 ## Yerelde çalıştırma
 
 ```bash
 cp .env.example .env.local
-npm install
+npm ci
 npm run dev
 ```
 
-Varsayılan `GRAPH_SOURCE=mock` ile Notion erişimi olmadan çalışır. Üretim kontrolü: `npm run test && npm run typecheck && npm run build`.
+Varsayılan `GRAPH_SOURCE=mock` ile Notion erişimi olmadan çalışır. Mock veri dört node tipini, proje bağlantılarını ve semantic metodoloji ilişkisini içerir.
 
 ## Ortam değişkenleri
 
 | Değişken | Açıklama |
 | --- | --- |
-| `GRAPH_SOURCE` | `mock` veya `notion` |
+| `GRAPH_SOURCE` | `mock` (varsayılan) veya `notion` |
 | `NOTION_TOKEN` | Server-only integration token |
-| `NOTION_TOPICS_DATABASE_ID` | Konular database ID |
-| `NOTION_KNOWLEDGE_DATABASE_ID` | Bilgi Ağı database ID |
+| `NOTION_INTEREST_AREAS_DATA_SOURCE_ID` | İlgi Alanları veri kaynağı ID'si |
+| `NOTION_TOPICS_DATA_SOURCE_ID` | Konular veri kaynağı ID'si |
+| `NOTION_METHODOLOGIES_DATA_SOURCE_ID` | Metodolojiler veri kaynağı ID'si |
+| `NOTION_PROJECTS_DATA_SOURCE_ID` | Projeler veri kaynağı ID'si |
+| `NOTION_METHODOLOGY_RELATIONSHIPS_DATA_SOURCE_ID` | Metodoloji İlişkileri veri kaynağı ID'si |
 | `CRON_SECRET` | Revalidation endpoint bearer secret |
 
-Hiçbir değişken `NEXT_PUBLIC_` değildir. Notion integration'ına iki database için yalnız okuma yetkisi verin.
+ID değerleri düz UUID veya `collection://...` biçiminde verilebilir. Hiçbir değişken `NEXT_PUBLIC_` değildir. Integration'a beş veri kaynağı için yalnız okuma yetkisi verin.
 
-## Beklenen Notion şeması
+Eski `NOTION_TOPICS_DATABASE_ID` ve `NOTION_KNOWLEDGE_DATABASE_ID` artık kullanılmaz ve deployment ortamından kaldırılabilir.
 
-Property adları ve tipleri birebir şöyledir:
+## Notion şeması
 
-**Konular:** `Ad` (title), `Özet` (rich text), `Konu Türü` (select), `Görünürlük` (select), `Ağırlık` (number, opsiyonel).
+- **İlgi Alanları:** `Ad`, `Özet`, `Konular`, opsiyonel `Gizli`
+- **Konular:** `Ad`, `Özet`, `İlgi Alanları`, `Metodolojiler`, `Projeler`, opsiyonel `Gizli`
+- **Metodolojiler:** `Ad`, `Özet`, `Aşama`, `Konular`, `Projeler`, `Kaynak / Köken`, opsiyonel `Gizli`
+- **Projeler:** `Ad`, `Özet`, `Tür`, `Durum`, `Konular`, `Metodolojiler`, opsiyonel `Gizli`
+- **Metodoloji İlişkileri:** `Kaynak Metodoloji`, `Hedef Metodoloji`, `İlişki Türü`, `Açıklama`
 
-**Bilgi Ağı:** `Ad` (title), `Özet` (rich text), `Tür` (select), `Aşama` (select/status), `Görünürlük` (select), `Ağırlık` (number, opsiyonel), `Konular` (relation), `İlişkili Kayıtlar` (relation).
+Eksik opsiyonel property'ler güvenli varsayılanlara (`false`, `[]`, `""`) normalize edilir. Tanınmayan ilişki türleri ve bozuk satırlar sunucu tanı kaydıyla atlanır.
 
-Kamusal select değeri tam olarak `Kamusal`; arşiv aşaması tam olarak `Arşiv` olmalıdır. Relation property'lerinin integration tarafından okunabildiğini doğrulayın.
+## Cache ve revalidation
 
-## Senkronizasyon ve deploy
-
-Standart Node.js destekleyen bir platforma deploy edin, environment variable'ları ekleyin ve domain'i bağlayın. Her gün aşağıdaki isteği çalıştırın:
+Graph verisi Next.js cache içinde 24 saat tutulur. Korumalı endpoint platformdan bağımsız bir cron ile çağrılabilir:
 
 ```bash
 curl -X POST -H "Authorization: Bearer $CRON_SECRET" https://thoughtmap.example.com/api/revalidate-graph
 ```
 
-Uygulama responsive container ölçülerini izler ve iframe içinde çalışır. Sunucu `frame-ancestors *` gönderir; üretimde bunu izin verilen parent domain'lerle daraltmanız önerilir.
-
-## MVP kapsamı
-
-Kaynak DTO tipi ve panel bölümü ileri kullanım için hazırdır; Notion kaynak database adaptörü, doküman görüntüleyici, semantic search, AI/RAG, kullanıcı hesabı ve write-back bilinçli olarak kapsam dışıdır.
+`/api/revalidate-graph`, doğru `CRON_SECRET` olmadan `401` döndürür. Uygulama responsive container ölçülerini izler ve iframe içinde çalışır.
