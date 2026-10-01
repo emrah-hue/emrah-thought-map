@@ -27,7 +27,9 @@ button { color:inherit; }
 .legend { position:absolute; top:40px; right:28px; z-index:3; display:flex; gap:16px; color:var(--muted); font-size:10px; letter-spacing:.08em; text-transform:uppercase; }
 .legend span { display:flex; align-items:center; gap:6px; }
 .legend i { width:8px; height:8px; display:inline-block; border-radius:50%; background:var(--sage); }
-.legend span+span i { border-radius:1px; background:var(--rust); transform:rotate(45deg); }
+.legend span:nth-child(2) i { background:#858f72; }
+.legend span:nth-child(3) i { border-radius:1px; background:var(--rust); transform:rotate(45deg); }
+.legend span:nth-child(4) i { border-radius:2px; background:#496a78; }
 .panel { padding:38px 34px 30px; overflow:auto; background:#e9e6dd; display:flex; flex-direction:column; }
 .panel-empty { margin:auto 0; }
 .panel-number { font:500 10px/1 "Manrope"; color:var(--rust); letter-spacing:.16em; }

@@ -1,24 +1,59 @@
-import type { PublicGraph, PublicGraphEdge, SourceNode } from "./types";
+import type { NormalizedSecondBrain, PublicGraph, PublicGraphEdge, PublicGraphNode, Relation } from "./types";
 import { nodeSize } from "./visual-rules";
 
-const PUBLIC="Kamusal";
-export function buildPublicGraph(source:SourceNode[]):PublicGraph {
-  const publicNodes=source.filter(n=>n.visibility===PUBLIC && n.stage!=="Arşiv");
-  const ids=new Set(publicNodes.map(n=>n.id));
-  const edges:PublicGraphEdge[]=[]; const seen=new Set<string>();
-  const add=(source:string,target:string,relation:"topic"|"related")=>{
-    if(source===target || !ids.has(target)) return;
-    const pair=relation==="related"?[source,target].sort().join("|"):`${source}|${target}`;
-    const key=`${relation}|${pair}`; if(seen.has(key)) return; seen.add(key);
-    edges.push({id:key,source,target,relation});
+export function buildPublicGraph(source: NormalizedSecondBrain): PublicGraph {
+  const nodes: PublicGraphNode[] = [];
+  const nodeIds = new Set<string>();
+  const addNode = (node: PublicGraphNode) => {
+    if (nodeIds.has(node.id)) return;
+    nodeIds.add(node.id);
+    nodes.push(node);
   };
-  for(const node of publicNodes) {
-    if(node.nodeClass!=="knowledge") continue;
-    node.topicIds?.forEach(id=>add(node.id,id,"topic"));
-    node.relatedIds?.forEach(id=>add(node.id,id,"related"));
+
+  source.interestAreas.filter((item) => !item.hidden).forEach((item) => addNode({
+    id: item.id, label: item.title, summary: item.summary, nodeClass: "interest-area", size: nodeSize("interest-area"),
+  }));
+  source.topics.filter((item) => !item.hidden).forEach((item) => addNode({
+    id: item.id, label: item.title, summary: item.summary, nodeClass: "topic", size: nodeSize("topic"),
+  }));
+  source.methodologies.filter((item) => !item.hidden && item.stage !== "Arşiv").forEach((item) => addNode({
+    id: item.id, label: item.title, summary: item.summary, nodeClass: "methodology", size: nodeSize("methodology"), stage: item.stage, source: item.source,
+  }));
+  source.projects.filter((item) => !item.hidden).forEach((item) => addNode({
+    id: item.id, label: item.title, summary: item.summary, nodeClass: "project", size: nodeSize("project"), projectType: item.type, status: item.status,
+  }));
+
+  const edges: PublicGraphEdge[] = [];
+  const edgeIds = new Set<string>();
+  const addEdge = (sourceId: string, targetId: string, relation: Relation, metadata: Partial<PublicGraphEdge> = {}) => {
+    if (sourceId === targetId || !nodeIds.has(sourceId) || !nodeIds.has(targetId)) return;
+    const id = `${relation}:${sourceId}:${targetId}${metadata.relationType ? `:${metadata.relationType}` : ""}`;
+    if (edgeIds.has(id)) return;
+    edgeIds.add(id);
+    edges.push({ id, source: sourceId, target: targetId, relation, ...metadata });
+  };
+
+  for (const topic of source.topics) {
+    topic.interestAreaIds.forEach((id) => addEdge(id, topic.id, "interest-area-topic"));
+    topic.methodologyIds.forEach((id) => addEdge(topic.id, id, "topic-methodology"));
+    topic.projectIds.forEach((id) => addEdge(topic.id, id, "topic-project"));
   }
-  const degree=new Map<string,number>();
-  edges.forEach(e=>{degree.set(e.source,(degree.get(e.source)??0)+1);degree.set(e.target,(degree.get(e.target)??0)+1)});
-  const nodes=publicNodes.map(({visibility:_,topicIds:__,relatedIds:___,...node})=>({...node,size:nodeSize(node.nodeClass,node.weight,node.stage,degree.get(node.id)??0)}));
-  return {nodes,edges,generatedAt:new Date().toISOString()};
+  // Relations may be maintained from either side in Notion; canonical edge direction remains layer-to-layer.
+  for (const area of source.interestAreas) area.topicIds.forEach((id) => addEdge(area.id, id, "interest-area-topic"));
+  for (const methodology of source.methodologies) {
+    methodology.topicIds.forEach((id) => addEdge(id, methodology.id, "topic-methodology"));
+    methodology.projectIds.forEach((id) => addEdge(methodology.id, id, "methodology-project"));
+  }
+  for (const project of source.projects) {
+    project.topicIds.forEach((id) => addEdge(id, project.id, "topic-project"));
+    project.methodologyIds.forEach((id) => addEdge(id, project.id, "methodology-project"));
+  }
+  for (const relationship of source.methodologyRelationships) addEdge(
+    relationship.sourceMethodologyId,
+    relationship.targetMethodologyId,
+    "methodology-relationship",
+    { relationType: relationship.relationType, description: relationship.description },
+  );
+
+  return { nodes, edges, generatedAt: new Date().toISOString() };
 }
