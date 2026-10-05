@@ -6,6 +6,7 @@ import { DetailPanel, MapFootnote } from "./DetailPanel";
 import { GraphFilters } from "./GraphFilters";
 import { Search } from "./Search";
 import type { GraphCanvasHandle } from "./GraphCanvas";
+import { selectionBranch } from "@/lib/graph/selection-branch";
 
 const GraphCanvas = dynamic(() => import("./GraphCanvas").then(module => module.GraphCanvas), { ssr: false });
 
@@ -22,10 +23,8 @@ export function ThoughtMap({ data }: { data: PublicGraph }) {
     if (id) requestAnimationFrame(() => graphRef.current?.focus(id));
   }, []);
   const node = graph.nodes.find(n => n.id === selected);
-  const neighbors = useMemo(() => selected ? graph.edges
-    .filter(e => e.source === selected || e.target === selected)
-    .map(e => graph.nodes.find(n => n.id === (e.source === selected ? e.target : e.source)))
-    .filter(n => n !== undefined) : [], [graph, selected]);
+  const branch = useMemo(() => selectionBranch(graph, selected), [graph, selected]);
+  const neighbors = graph.nodes.filter(n => n.id !== selected && branch.nodeIds.has(n.id));
 
   async function refreshGraph() {
     if (refreshInFlight.current) return;
@@ -76,6 +75,6 @@ export function ThoughtMap({ data }: { data: PublicGraph }) {
         <MapFootnote className="map-footnote-mobile" />
       </div>
     </section>
-    <DetailPanel node={node} neighbors={neighbors} onSelect={select} onClose={() => select(undefined)} />
+    <DetailPanel node={node} neighbors={neighbors} directIds={branch.directIds} onSelect={select} onClose={() => select(undefined)} />
   </div>;
 }
