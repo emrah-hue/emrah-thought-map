@@ -16,7 +16,9 @@ Buna ek olarak ayrı **Metodoloji İlişkileri** veri kaynağı, yönlü `Metodo
 - Metodoloji → Proje
 - Metodoloji → Metodoloji (`Besler`, `Kapsar`, `Tamamlar`, `Derinleştirir`)
 
-Veri akışı: `Notion → server-only fetcher'lar → normalize edilmiş tipler → gizlilik/arşiv filtresi → public graph DTO → Graphology → ForceAtlas2 → Sigma.js`.
+Veri akışı: `Notion → server-only fetcher'lar → normalize edilmiş tipler → gizlilik/arşiv filtresi → public graph DTO → Graphology → çember yerleşimi → Sigma.js`.
+
+Toplu görünümde ilgi alanları, konular, metodolojiler ve projeler merkezden dışarıya dört çemberde yerleşir. Kategori filtresinde seçilen katman tek çember oluşturur. Yerleşim bağlantıları değiştirmez; bağlı noktaları yakın açılara taşır ve dar ekranlarda nokta boyutlarını boşluğa göre sınırlar.
 
 Graph'ta dört node tipi bulunur: **İlgi Alanı**, **Konu**, **Metodoloji** ve **Proje**. Boyutlar önem puanına göre değil node tipine göre belirlenir. Notion'daki `Ad` başlık, `Özet` ise canonical public açıklamadır.
 

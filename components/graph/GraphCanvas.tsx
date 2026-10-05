@@ -3,11 +3,10 @@ import { useEffect, useRef } from "react";
 import Graph from "graphology";
 import Sigma from "sigma";
 import type { NodeLabelDrawingFunction, NodeHoverDrawingFunction } from "sigma/rendering";
-import FA2Layout from "graphology-layout-forceatlas2/worker";
-import forceAtlas2 from "graphology-layout-forceatlas2";
 import type { GraphFilter, PublicGraph, PublicGraphNode } from "@/lib/graph/types";
 import { matchesFilter } from "@/lib/graph/filters";
 import { NODE_COLOR, PAPER_COLOR, paperBlend } from "@/lib/graph/visual-rules";
+import { circularLayout } from "@/lib/graph/circular-layout";
 
 // Sigma's label grid still decides which labels appear. A paper outline keeps
 // them readable over edges; long overview labels reveal their full text on hover.
@@ -52,6 +51,7 @@ export type GraphCanvasHandle = {
   zoomIn: () => void;
   zoomOut: () => void;
   resetView: () => void;
+  layout: (filter: GraphFilter) => void;
 };
 export function GraphCanvas({ data, selected, filter, onSelect, handleRef }: {
   data: PublicGraph;
@@ -66,11 +66,12 @@ export function GraphCanvas({ data, selected, filter, onSelect, handleRef }: {
   useEffect(() => {
     if (!container.current) return;
     const graph = new Graph({ multi: false, type: "directed" });
-    const initialRadius = data.nodes.reduce((radius, node) => Math.max(radius, node.size * 3), 1);
-    data.nodes.forEach((n, i) => {
-      const angle = (i / data.nodes.length) * Math.PI * 2;
+    const initial = circularLayout(data, "all");
+    let currentLayout = initial;
+    let sizeScale = 1;
+    data.nodes.forEach(n => {
       graph.addNode(n.id, {
-        ...n, x: Math.cos(angle) * initialRadius, y: Math.sin(angle) * initialRadius,
+        ...n, ...initial.positions.get(n.id),
         color: NODE_COLOR[n.nodeClass], label: n.label, size: n.size,
       });
     });
@@ -93,7 +94,8 @@ export function GraphCanvas({ data, selected, filter, onSelect, handleRef }: {
       nodeReducer: (id, attrs) => {
         const { selected, filter } = state.current;
         if (!matchesFilter(attrs as PublicGraphNode, filter)) return { ...attrs, hidden: true };
-        if (!selected || !graph.hasNode(selected)) return attrs;
+        const size = attrs.size * sizeScale;
+        if (!selected || !graph.hasNode(selected)) return { ...attrs, size };
         const active = id === selected;
         const near = active || graph.areNeighbors(id, selected);
         return {
@@ -102,7 +104,7 @@ export function GraphCanvas({ data, selected, filter, onSelect, handleRef }: {
           label: near ? attrs.label : "",
           highlighted: active, forceLabel: active,
           zIndex: active ? 3 : near ? 2 : 0,
-          size: attrs.size * (active ? 1.2 : near ? 1.06 : .92),
+          size: size * (active ? 1.2 : near ? 1.06 : .92),
         };
       },
       edgeReducer: (id, attrs) => {
@@ -120,6 +122,20 @@ export function GraphCanvas({ data, selected, filter, onSelect, handleRef }: {
         };
       },
     });
+    const fitNodeSizes = () => {
+      const { width, height } = renderer.getDimensions();
+      const pixelsPerUnit = Math.max(1, Math.min(width, height) - 100) / (2 * currentLayout.radius);
+      sizeScale = Math.min(1, currentLayout.sizeRatio * pixelsPerUnit * .8);
+    };
+    const applyLayout = (filter: GraphFilter) => {
+      currentLayout = circularLayout(data, filter);
+      for (const [id, position] of currentLayout.positions) graph.mergeNodeAttributes(id, position);
+      const r = currentLayout.radius;
+      renderer.setCustomBBox({ x: [-r, r], y: [-r, r] });
+      fitNodeSizes();
+      renderer.refresh();
+      void renderer.getCamera().animatedReset({ duration: 350 });
+    };
     handleRef.current = {
       focus: (id) => {
         if (!graph.hasNode(id)) return;
@@ -130,6 +146,7 @@ export function GraphCanvas({ data, selected, filter, onSelect, handleRef }: {
       zoomIn: () => { void renderer.getCamera().animatedZoom({ duration: 200 }); },
       zoomOut: () => { void renderer.getCamera().animatedUnzoom({ duration: 200 }); },
       resetView: () => { void renderer.getCamera().animatedReset({ duration: 300 }); },
+      layout: applyLayout,
     };
     let dragged: string | null = null, isDragging = false;
     renderer.on("downNode", ({ node, event }) => {
@@ -155,14 +172,11 @@ export function GraphCanvas({ data, selected, filter, onSelect, handleRef }: {
     window.addEventListener("blur", releaseDrag);
     renderer.on("clickNode", ({ node }) => { if (!isDragging) onSelect(node); });
     renderer.on("clickStage", () => onSelect(undefined));
-    const observer = new ResizeObserver(() => renderer.resize());
+    const observer = new ResizeObserver(() => { renderer.resize(); fitNodeSizes(); renderer.refresh(); });
     observer.observe(container.current);
-    const settings = forceAtlas2.inferSettings(graph);
-    const layout = new FA2Layout(graph, { settings: { ...settings, adjustSizes: true, gravity: 1.1, scalingRatio: 7, slowDown: 3 } });
-    layout.start();
-    const stop = window.setTimeout(() => { layout.stop(); renderer.getCamera().animatedReset({ duration: 650 }); }, 1800);
-    return () => { clearTimeout(stop); window.removeEventListener("blur", releaseDrag); layout.kill(); observer.disconnect(); renderer.kill(); handleRef.current = null; };
+    return () => { window.removeEventListener("blur", releaseDrag); observer.disconnect(); renderer.kill(); handleRef.current = null; };
   }, [data, onSelect, handleRef]);
+  useEffect(() => { handleRef.current?.layout(filter); }, [data, filter, handleRef]);
   useEffect(() => { handleRef.current?.refresh(); }, [filter, selected, handleRef]);
   return <div ref={container} className="graph-canvas" role="img" aria-label="İlgi alanları, konular, metodolojiler ve projeler arasındaki etkileşimli düşünce haritası" />;
 }
