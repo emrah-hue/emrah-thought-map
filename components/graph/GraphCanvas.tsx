@@ -46,7 +46,13 @@ const drawHover: NodeHoverDrawingFunction = (context, data, settings) => {
   drawLabel(context, { ...data, highlighted: true }, settings);
 };
 
-export type GraphCanvasHandle = { focus: (id: string) => void; refresh: () => void };
+export type GraphCanvasHandle = {
+  focus: (id: string) => void;
+  refresh: () => void;
+  zoomIn: () => void;
+  zoomOut: () => void;
+  resetView: () => void;
+};
 export function GraphCanvas({ data, selected, filter, onSelect, handleRef }: {
   data: PublicGraph;
   selected?: string;
@@ -121,9 +127,19 @@ export function GraphCanvas({ data, selected, filter, onSelect, handleRef }: {
         if (pos) renderer.getCamera().animate({ x: pos.x, y: pos.y, ratio: Math.min(renderer.getCamera().ratio, .55) }, { duration: 600 });
       },
       refresh: () => renderer.refresh(),
+      zoomIn: () => { void renderer.getCamera().animatedZoom({ duration: 200 }); },
+      zoomOut: () => { void renderer.getCamera().animatedUnzoom({ duration: 200 }); },
+      resetView: () => { void renderer.getCamera().animatedReset({ duration: 300 }); },
     };
     let dragged: string | null = null, isDragging = false;
-    renderer.on("downNode", ({ node }) => { dragged = node; isDragging = false; renderer.getCamera().disable(); });
+    renderer.on("downNode", ({ node, event }) => {
+      isDragging = false;
+      // TouchCaptor also emits downNode. Keep its camera enabled so node taps
+      // and one/two-finger gestures continue to use Sigma's native navigation.
+      if (!(event.original instanceof MouseEvent) || event.original.button !== 0) return;
+      dragged = node;
+      renderer.getCamera().disable();
+    });
     renderer.getMouseCaptor().on("mousemovebody", e => {
       if (!dragged) return;
       isDragging = true;
@@ -133,8 +149,10 @@ export function GraphCanvas({ data, selected, filter, onSelect, handleRef }: {
       e.preventSigmaDefault();
       e.original.preventDefault();
     });
-    renderer.getMouseCaptor().on("mouseup", () => { dragged = null; renderer.getCamera().enable(); });
-    renderer.getMouseCaptor().on("mouseleave", () => { dragged = null; renderer.getCamera().enable(); });
+    const releaseDrag = () => { dragged = null; renderer.getCamera().enable(); };
+    renderer.getMouseCaptor().on("mouseup", releaseDrag);
+    renderer.getMouseCaptor().on("mouseleave", releaseDrag);
+    window.addEventListener("blur", releaseDrag);
     renderer.on("clickNode", ({ node }) => { if (!isDragging) onSelect(node); });
     renderer.on("clickStage", () => onSelect(undefined));
     const observer = new ResizeObserver(() => renderer.resize());
@@ -143,7 +161,7 @@ export function GraphCanvas({ data, selected, filter, onSelect, handleRef }: {
     const layout = new FA2Layout(graph, { settings: { ...settings, adjustSizes: true, gravity: 1.1, scalingRatio: 7, slowDown: 3 } });
     layout.start();
     const stop = window.setTimeout(() => { layout.stop(); renderer.getCamera().animatedReset({ duration: 650 }); }, 1800);
-    return () => { clearTimeout(stop); layout.kill(); observer.disconnect(); renderer.kill(); handleRef.current = null; };
+    return () => { clearTimeout(stop); window.removeEventListener("blur", releaseDrag); layout.kill(); observer.disconnect(); renderer.kill(); handleRef.current = null; };
   }, [data, onSelect, handleRef]);
   useEffect(() => { handleRef.current?.refresh(); }, [filter, selected, handleRef]);
   return <div ref={container} className="graph-canvas" role="img" aria-label="İlgi alanları, konular, metodolojiler ve projeler arasındaki etkileşimli düşünce haritası" />;
