@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import Graph from "graphology";
 import Sigma from "sigma";
 import type { NodeLabelDrawingFunction, NodeHoverDrawingFunction } from "sigma/rendering";
@@ -7,6 +7,7 @@ import type { GraphFilter, PublicGraph, PublicGraphNode } from "@/lib/graph/type
 import { matchesFilter } from "@/lib/graph/filters";
 import { NODE_COLOR, PAPER_COLOR, paperBlend } from "@/lib/graph/visual-rules";
 import { circularLayout } from "@/lib/graph/circular-layout";
+import { selectionBranch } from "@/lib/graph/selection-branch";
 
 // Sigma's label grid still decides which labels appear. A paper outline keeps
 // them readable over edges; long overview labels reveal their full text on hover.
@@ -61,8 +62,9 @@ export function GraphCanvas({ data, selected, filter, onSelect, handleRef }: {
   handleRef: React.MutableRefObject<GraphCanvasHandle | null>;
 }) {
   const container = useRef<HTMLDivElement>(null);
-  const state = useRef({ selected, filter });
-  state.current = { selected, filter };
+  const branch = useMemo(() => selectionBranch(data, selected), [data, selected]);
+  const state = useRef({ selected, filter, branch });
+  state.current = { selected, filter, branch };
   useEffect(() => {
     if (!container.current) return;
     const graph = new Graph({ multi: false, type: "directed" });
@@ -92,28 +94,30 @@ export function GraphCanvas({ data, selected, filter, onSelect, handleRef }: {
       defaultDrawNodeLabel: drawLabel, defaultDrawNodeHover: drawHover,
       defaultEdgeType: "line", minEdgeThickness: .3, stagePadding: 50, zIndex: true,
       nodeReducer: (id, attrs) => {
-        const { selected, filter } = state.current;
+        const { selected, filter, branch } = state.current;
         if (!matchesFilter(attrs as PublicGraphNode, filter)) return { ...attrs, hidden: true };
         const size = attrs.size * sizeScale;
         if (!selected || !graph.hasNode(selected)) return { ...attrs, size };
         const active = id === selected;
-        const near = active || graph.areNeighbors(id, selected);
+        const near = branch.nodeIds.has(id);
         return {
           ...attrs,
           color: near ? attrs.color : paperBlend(attrs.color, .22),
           label: near ? attrs.label : "",
-          highlighted: active, forceLabel: active,
+          // Small branches (e.g. Music and its projects) can show every label;
+          // larger branches keep Sigma's collision-aware label grid.
+          highlighted: active, forceLabel: active || (near && branch.nodeIds.size <= 8),
           zIndex: active ? 3 : near ? 2 : 0,
           size: size * (active ? 1.2 : near ? 1.06 : .92),
         };
       },
       edgeReducer: (id, attrs) => {
-        const { selected, filter } = state.current;
+        const { selected, filter, branch } = state.current;
         const [s, t] = graph.extremities(id);
         if (!matchesFilter(graph.getNodeAttributes(s) as PublicGraphNode, filter) ||
             !matchesFilter(graph.getNodeAttributes(t) as PublicGraphNode, filter)) return { ...attrs, hidden: true };
         if (!selected || !graph.hasNode(selected)) return attrs;
-        const relevant = s === selected || t === selected;
+        const relevant = branch.edgeIds.has(id);
         return {
           ...attrs,
           color: relevant ? paperBlend(graph.getNodeAttribute(selected, "color"), .65) : paperBlend("#647265", .09),
@@ -139,8 +143,17 @@ export function GraphCanvas({ data, selected, filter, onSelect, handleRef }: {
     handleRef.current = {
       focus: (id) => {
         if (!graph.hasNode(id)) return;
-        const pos = renderer.getNodeDisplayData(id);
-        if (pos) renderer.getCamera().animate({ x: pos.x, y: pos.y, ratio: Math.min(renderer.getCamera().ratio, .55) }, { duration: 600 });
+        const related = selectionBranch(data, id);
+        const points = [...related.nodeIds]
+          .filter(nodeId => matchesFilter(graph.getNodeAttributes(nodeId) as PublicGraphNode, state.current.filter))
+          .map(nodeId => renderer.getNodeDisplayData(nodeId)).filter(point => point !== undefined);
+        if (!points.length) return;
+        const xs = points.map(point => point.x), ys = points.map(point => point.y);
+        const left = Math.min(...xs), right = Math.max(...xs), bottom = Math.min(...ys), top = Math.max(...ys);
+        void renderer.getCamera().animate({
+          x: (left + right) / 2, y: (bottom + top) / 2,
+          ratio: Math.max(.38, Math.max(right - left, top - bottom) * 1.2),
+        }, { duration: 600 });
       },
       refresh: () => renderer.refresh(),
       zoomIn: () => { void renderer.getCamera().animatedZoom({ duration: 200 }); },
