@@ -50,7 +50,7 @@ export function ThoughtMap({ data }: { data: PublicGraph }) {
     }
   }
 
-  return <div className="shell">
+  return <div className="shell" data-selected={Boolean(node)}>
     <section className="graph-stage">
       <header className="masthead">
         <p className="eyebrow">EMRAH AKBALABAN’IN DÜŞÜNCE HARİTASI</p>
@@ -59,12 +59,17 @@ export function ThoughtMap({ data }: { data: PublicGraph }) {
       </header>
       <div className="legend" aria-hidden="true"><span><i /> İlgi Alanı</span><span><i /> Konu</span><span><i /> Metodoloji</span><span><i /> Proje</span></div>
       <GraphCanvas data={graph} selected={selected} filter={filter} onSelect={select} handleRef={graphRef} />
+      <div className="zoom-controls" role="group" aria-label="Harita görünümü">
+        <button onClick={() => graphRef.current?.zoomIn()} aria-label="Haritayı yakınlaştır">+</button>
+        <button onClick={() => graphRef.current?.zoomOut()} aria-label="Haritayı uzaklaştır">−</button>
+        <button onClick={() => graphRef.current?.resetView()} aria-label="Haritanın tamamını göster">⤢</button>
+      </div>
       <div className="toolbar">
         <Search nodes={graph.nodes} onSelect={select} />
         <GraphFilters value={filter} onChange={value => { setFilter(value); setSelected(undefined); }} />
         <div className="refresh-control">
-          <button className="refresh-button" onClick={refreshGraph} disabled={refreshing} aria-busy={refreshing} title="Güncel veriyi getirir. Tekrarlanan istekler bir dakika boyunca aynı veriyi paylaşır.">
-            <span aria-hidden="true">↻</span> {refreshing ? "Güncelleniyor…" : "Haritayı güncelle"}
+          <button className="refresh-button" onClick={refreshGraph} disabled={refreshing} aria-busy={refreshing} aria-label={refreshing ? "Harita güncelleniyor" : "Haritayı güncelle"} title="Güncel veriyi getirir. Tekrarlanan istekler bir dakika boyunca aynı veriyi paylaşır.">
+            <span aria-hidden="true">↻</span> <span className="refresh-label">{refreshing ? "Güncelleniyor…" : "Haritayı güncelle"}</span>
           </button>
           <p className="refresh-status" role="status">{refreshStatus}</p>
         </div>
