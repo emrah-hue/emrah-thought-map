@@ -9,7 +9,7 @@ export function MapFootnote({className=""}:{className?:string}){
 }
 
 export function DetailPanel({node,neighbors,directIds,onSelect,onClose}:{node?:PublicGraphNode;neighbors:PublicGraphNode[];directIds:Set<string>;onSelect:(id:string)=>void;onClose:()=>void}){
- if(!node)return <aside className="panel panel-empty" aria-label="Detay paneli"><div><span className="panel-number">KEŞFET</span><h2>Bağlantıları takip edin.</h2><p className="summary">Bir düğümü seçerek özetini ve içten dışa bağlantılı kayıtları görün.</p></div><p className="hint">Yakınlaştırmak için kaydırın · Taşımak için düğümü sürükleyin</p><MapFootnote/></aside>;
+ if(!node)return <aside className="panel panel-empty" aria-label="Detay paneli"><div><span className="panel-number">KEŞFET</span><h2>Bağlantıları takip edin.</h2><p className="summary">Bir düğümü seçerek özetini ve doğrudan ilişkilerini görün; bağlantıları seçerek haritada adım adım ilerleyin.</p></div><p className="hint">Yakınlaştırmak için kaydırın · Taşımak için düğümü sürükleyin</p><MapFootnote/></aside>;
  const groups=(["interest-area","topic","methodology","project"] as NodeClass[]).map(nodeClass=>({nodeClass,items:neighbors.filter(n=>n.nodeClass===nodeClass)}));
  const list=(title:string,items:PublicGraphNode[])=><section className="related"><h3>{title}</h3>{items.map(n=><button key={n.id} onClick={()=>onSelect(n.id)}>{n.label}{!directIds.has(n.id)&&<small> · Dolaylı</small>} <span aria-hidden="true">↗</span></button>)}</section>;
  const meta=[node.nodeClass==="project"?node.projectType:undefined,node.status,node.stage].filter(Boolean);
