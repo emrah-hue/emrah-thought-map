@@ -4,15 +4,17 @@ export type Relation =
   | "topic-methodology"
   | "topic-project"
   | "methodology-project"
+  | "topic-relationship"
+  | "project-relationship"
   | "methodology-relationship";
 export type MethodologyRelationType = "Besler" | "Kapsar" | "Tamamlar" | "Derinleştirir";
 export type GraphFilter = "all" | "interest-areas" | "topics" | "methodologies" | "projects";
 
 type BaseEntity = { id: string; title: string; summary: string; hidden?: boolean };
 export type InterestArea = BaseEntity & { topicIds: string[] };
-export type Topic = BaseEntity & { interestAreaIds: string[]; methodologyIds: string[]; projectIds: string[] };
+export type Topic = BaseEntity & { interestAreaIds: string[]; methodologyIds: string[]; projectIds: string[]; relatedTopicIds?: string[] };
 export type Methodology = BaseEntity & { stage: string; topicIds: string[]; projectIds: string[]; source?: string };
-export type Project = BaseEntity & { type?: string; status?: string; topicIds: string[]; methodologyIds: string[] };
+export type Project = BaseEntity & { type?: string; status?: string; topicIds: string[]; methodologyIds: string[]; relatedProjectIds?: string[] };
 export type MethodologyRelationship = {
   id: string;
   sourceMethodologyId: string;

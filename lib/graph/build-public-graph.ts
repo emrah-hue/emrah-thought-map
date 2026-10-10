@@ -25,6 +25,7 @@ export function buildPublicGraph(source: NormalizedSecondBrain): PublicGraph {
 
   const edges: PublicGraphEdge[] = [];
   const edgeIds = new Set<string>();
+  const nodeClasses = new Map(nodes.map(node => [node.id, node.nodeClass]));
   const addEdge = (sourceId: string, targetId: string, relation: Relation, metadata: Partial<PublicGraphEdge> = {}) => {
     if (sourceId === targetId || !nodeIds.has(sourceId) || !nodeIds.has(targetId)) return;
     const id = `${relation}:${sourceId}:${targetId}${metadata.relationType ? `:${metadata.relationType}` : ""}`;
@@ -33,10 +34,19 @@ export function buildPublicGraph(source: NormalizedSecondBrain): PublicGraph {
     edges.push({ id, source: sourceId, target: targetId, relation, ...metadata });
   };
 
+  // Peer relations are undirected. Either endpoint may maintain the Notion
+  // relation; sort IDs so reciprocal entries always produce one stable edge.
+  const addPeerEdge = (a: string, b: string, nodeClass: "topic" | "project", relation: Relation) => {
+    if (nodeClasses.get(a) !== nodeClass || nodeClasses.get(b) !== nodeClass) return;
+    const [sourceId, targetId] = [a, b].sort();
+    addEdge(sourceId, targetId, relation);
+  };
+
   for (const topic of source.topics) {
     topic.interestAreaIds.forEach((id) => addEdge(id, topic.id, "interest-area-topic"));
     topic.methodologyIds.forEach((id) => addEdge(topic.id, id, "topic-methodology"));
     topic.projectIds.forEach((id) => addEdge(topic.id, id, "topic-project"));
+    topic.relatedTopicIds?.forEach(id => addPeerEdge(topic.id, id, "topic", "topic-relationship"));
   }
   // Relations may be maintained from either side in Notion; canonical edge direction remains layer-to-layer.
   for (const area of source.interestAreas) area.topicIds.forEach((id) => addEdge(area.id, id, "interest-area-topic"));
@@ -47,6 +57,7 @@ export function buildPublicGraph(source: NormalizedSecondBrain): PublicGraph {
   for (const project of source.projects) {
     project.topicIds.forEach((id) => addEdge(id, project.id, "topic-project"));
     project.methodologyIds.forEach((id) => addEdge(id, project.id, "methodology-project"));
+    project.relatedProjectIds?.forEach(id => addPeerEdge(project.id, id, "project", "project-relationship"));
   }
   for (const relationship of source.methodologyRelationships) addEdge(
     relationship.sourceMethodologyId,
