@@ -89,6 +89,7 @@ button:focus-visible,input:focus-visible { outline:2px solid var(--rust); outlin
   .zoom-controls { display:flex; position:absolute; right:12px; bottom:calc(190px + env(safe-area-inset-bottom)); z-index:11; gap:4px; pointer-events:auto; }
   .zoom-controls button { width:44px; height:44px; padding:0; border:1px solid var(--line); border-radius:4px; background:rgba(247,245,239,.95); font-size:22px; cursor:pointer; }
   .shell[data-selected="true"] .zoom-controls { bottom:calc(45dvh + 10px); }
+  .shell[data-selected="true"] .graph-canvas { top:100px; bottom:calc(45dvh + 8px); }
   .panel { position:absolute; z-index:10; left:0; right:0; bottom:0; max-height:45dvh; border-radius:14px 14px 0 0; padding:28px 25px calc(22px + env(safe-area-inset-bottom)); box-shadow:0 -10px 40px rgba(30,30,25,.13); overscroll-behavior:contain; touch-action:pan-y; }
   .panel-empty { display:none; }
   .panel h2 { font-size:24px; margin-top:14px; }

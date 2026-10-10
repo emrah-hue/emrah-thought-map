@@ -7,6 +7,7 @@ import { GraphFilters } from "./GraphFilters";
 import { Search } from "./Search";
 import type { GraphCanvasHandle } from "./GraphCanvas";
 import { selectionBranch } from "@/lib/graph/selection-branch";
+import { matchesFilter } from "@/lib/graph/filters";
 
 const GraphCanvas = dynamic(() => import("./GraphCanvas").then(module => module.GraphCanvas), { ssr: false });
 
@@ -19,9 +20,10 @@ export function ThoughtMap({ data }: { data: PublicGraph }) {
   const refreshInFlight = useRef(false);
   const graphRef = useRef<GraphCanvasHandle | null>(null);
   const select = useCallback((id?: string) => {
+    const target = graph.nodes.find(node => node.id === id);
+    if (target) setFilter(current => matchesFilter(target, current) ? current : "all");
     setSelected(id);
-    if (id) requestAnimationFrame(() => graphRef.current?.focus(id));
-  }, []);
+  }, [graph]);
   const node = graph.nodes.find(n => n.id === selected);
   const branch = useMemo(() => selectionBranch(graph, selected), [graph, selected]);
   const neighbors = graph.nodes.filter(n => n.id !== selected && branch.nodeIds.has(n.id));

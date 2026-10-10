@@ -2,12 +2,17 @@
 import { useEffect, useMemo, useRef } from "react";
 import Graph from "graphology";
 import Sigma from "sigma";
+import { animateNodes } from "sigma/utils";
 import type { NodeLabelDrawingFunction, NodeHoverDrawingFunction } from "sigma/rendering";
 import type { GraphFilter, PublicGraph, PublicGraphNode } from "@/lib/graph/types";
 import { matchesFilter } from "@/lib/graph/filters";
 import { NODE_COLOR, PAPER_COLOR, paperBlend } from "@/lib/graph/visual-rules";
 import { circularLayout } from "@/lib/graph/circular-layout";
+import { focusLayout } from "@/lib/graph/focus-layout";
 import { selectionBranch } from "@/lib/graph/selection-branch";
+
+type LabelBounds = { left: number; right: number; top: number; bottom: number };
+const labelBounds = new WeakMap<CanvasRenderingContext2D, LabelBounds[]>();
 
 // Sigma's label grid still decides which labels appear. A paper outline keeps
 // them readable over edges; long overview labels reveal their full text on hover.
@@ -16,6 +21,43 @@ const drawLabel: NodeLabelDrawingFunction = (context, data, settings) => {
   context.save();
   const weight = data.highlighted ? "600" : settings.labelWeight;
   context.font = `${weight} ${settings.labelSize}px ${settings.labelFont}, sans-serif`;
+  if (data.focusLabel) {
+    const width = data.highlighted ? 190 : 120;
+    const words = data.label.split(/\s+/);
+    const lines: string[] = [];
+    let line = "";
+    for (const word of words) {
+      const next = line ? `${line} ${word}` : word;
+      if (line && context.measureText(next).width > width) { lines.push(line); line = word; }
+      else line = next;
+    }
+    if (line) lines.push(line);
+    const maxLines = data.highlighted ? 4 : 2;
+    if (lines.length > maxLines) {
+      lines.length = maxLines;
+      lines[maxLines - 1] += "…";
+    }
+    const lineHeight = settings.labelSize * 1.25;
+    const above = data.highlighted || data.focusLabelAbove;
+    const y = above ? data.y - data.size - 9 - (lines.length - 1) * lineHeight : data.y + data.size + lineHeight;
+    const textWidth = Math.max(...lines.map(text => context.measureText(text).width));
+    const bounds = { left: data.x - textWidth / 2 - 5, right: data.x + textWidth / 2 + 5, top: y - settings.labelSize - 4, bottom: y + (lines.length - 1) * lineHeight + 4 };
+    const occupied = labelBounds.get(context) ?? [];
+    if (!data.highlighted && occupied.some(b => bounds.left < b.right && bounds.right > b.left && bounds.top < b.bottom && bounds.bottom > b.top)) {
+      context.restore();
+      return;
+    }
+    occupied.push(bounds);
+    labelBounds.set(context, occupied);
+    context.textAlign = "center";
+    context.lineWidth = 4;
+    context.lineJoin = "round";
+    context.strokeStyle = PAPER_COLOR;
+    context.fillStyle = "#30352f";
+    lines.forEach((text, i) => { context.strokeText(text, data.x, y + i * lineHeight); context.fillText(text, data.x, y + i * lineHeight); });
+    context.restore();
+    return;
+  }
   let label = data.label;
   const maxWidth = data.highlighted ? 260 : 180;
   if (context.measureText(label).width > maxWidth && !data.highlighted) {
@@ -47,12 +89,11 @@ const drawHover: NodeHoverDrawingFunction = (context, data, settings) => {
 };
 
 export type GraphCanvasHandle = {
-  focus: (id: string) => void;
   refresh: () => void;
   zoomIn: () => void;
   zoomOut: () => void;
   resetView: () => void;
-  layout: (filter: GraphFilter) => void;
+  layout: (filter: GraphFilter, selected?: string) => void;
 };
 export function GraphCanvas({ data, selected, filter, onSelect, handleRef }: {
   data: PublicGraph;
@@ -71,6 +112,8 @@ export function GraphCanvas({ data, selected, filter, onSelect, handleRef }: {
     const initial = circularLayout(data, "all");
     let currentLayout = initial;
     let sizeScale = 1;
+    let cancelLayoutAnimation: (() => void) | undefined;
+    const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
     data.nodes.forEach(n => {
       graph.addNode(n.id, {
         ...n, ...initial.positions.get(n.id),
@@ -102,13 +145,14 @@ export function GraphCanvas({ data, selected, filter, onSelect, handleRef }: {
         const near = branch.nodeIds.has(id);
         return {
           ...attrs,
-          color: near ? attrs.color : paperBlend(attrs.color, .22),
+          color: near ? attrs.color : paperBlend(attrs.color, .12),
           label: near ? attrs.label : "",
-          // Small branches (e.g. Music and its projects) can show every label;
-          // larger branches keep Sigma's collision-aware label grid.
+          focusLabel: near,
+          focusLabelAbove: near && attrs.y > 0,
+          // Small neighborhoods show all labels; dense ones keep Sigma's grid.
           highlighted: active, forceLabel: active || (near && branch.nodeIds.size <= 8),
           zIndex: active ? 3 : near ? 2 : 0,
-          size: size * (active ? 1.2 : near ? 1.06 : .92),
+          size: size * (active ? 1.2 : near ? 1.06 : .65),
         };
       },
       edgeReducer: (id, attrs) => {
@@ -117,48 +161,57 @@ export function GraphCanvas({ data, selected, filter, onSelect, handleRef }: {
         if (!matchesFilter(graph.getNodeAttributes(s) as PublicGraphNode, filter) ||
             !matchesFilter(graph.getNodeAttributes(t) as PublicGraphNode, filter)) return { ...attrs, hidden: true };
         if (!selected || !graph.hasNode(selected)) return attrs;
-        const relevant = branch.edgeIds.has(id);
+        if (!branch.edgeIds.has(id)) return { ...attrs, hidden: true };
         return {
           ...attrs,
-          color: relevant ? paperBlend(graph.getNodeAttribute(selected, "color"), .65) : paperBlend("#647265", .09),
-          size: relevant ? attrs.size + .85 : .3,
-          zIndex: relevant ? 2 : 0,
+          color: paperBlend(graph.getNodeAttribute(selected, "color"), .55),
+          size: attrs.size + .6,
+          zIndex: 2,
         };
       },
+    });
+    const overlays = container.current.parentElement?.querySelectorAll<HTMLElement>(".masthead, .legend, .toolbar, .zoom-controls");
+    renderer.on("beforeRender", () => {
+      // Focus labels also leave room for the fixed controls and introductory text.
+      const viewport = container.current?.getBoundingClientRect();
+      const reserved: LabelBounds[] = [];
+      if (state.current.selected && viewport) overlays?.forEach(element => {
+        const box = element.getBoundingClientRect();
+        if (box.width && box.height) reserved.push({ left: box.left - viewport.left - 4, right: box.right - viewport.left + 4, top: box.top - viewport.top - 4, bottom: box.bottom - viewport.top + 4 });
+      });
+      for (const name of ["labels", "hovers"]) {
+        const context = renderer.getCanvases()[name]?.getContext("2d");
+        if (context) labelBounds.set(context, [...reserved]);
+      }
     });
     const fitNodeSizes = () => {
       const { width, height } = renderer.getDimensions();
       const pixelsPerUnit = Math.max(1, Math.min(width, height) - 100) / (2 * currentLayout.radius);
       sizeScale = Math.min(1, currentLayout.sizeRatio * pixelsPerUnit * .8);
     };
-    const applyLayout = (filter: GraphFilter) => {
-      currentLayout = circularLayout(data, filter);
-      for (const [id, position] of currentLayout.positions) graph.mergeNodeAttributes(id, position);
+    const applyLayout = (filter: GraphFilter, selected?: string) => {
+      cancelLayoutAnimation?.();
+      currentLayout = focusLayout(data, filter, selected);
       const r = currentLayout.radius;
       renderer.setCustomBBox({ x: [-r, r], y: [-r, r] });
       fitNodeSizes();
+      const targets = Object.fromEntries(currentLayout.positions);
+      if (reducedMotion.matches) {
+        for (const [id, position] of currentLayout.positions) graph.mergeNodeAttributes(id, position);
+      } else {
+        cancelLayoutAnimation = animateNodes(graph, targets, { duration: 280, easing: "quadraticInOut" });
+      }
       renderer.refresh();
-      void renderer.getCamera().animatedReset({ duration: 350 });
+      void renderer.getCamera().animatedReset({ duration: reducedMotion.matches ? 0 : 280 });
     };
     handleRef.current = {
-      focus: (id) => {
-        if (!graph.hasNode(id)) return;
-        const related = selectionBranch(data, id);
-        const points = [...related.nodeIds]
-          .filter(nodeId => matchesFilter(graph.getNodeAttributes(nodeId) as PublicGraphNode, state.current.filter))
-          .map(nodeId => renderer.getNodeDisplayData(nodeId)).filter(point => point !== undefined);
-        if (!points.length) return;
-        const xs = points.map(point => point.x), ys = points.map(point => point.y);
-        const left = Math.min(...xs), right = Math.max(...xs), bottom = Math.min(...ys), top = Math.max(...ys);
-        void renderer.getCamera().animate({
-          x: (left + right) / 2, y: (bottom + top) / 2,
-          ratio: Math.max(.38, Math.max(right - left, top - bottom) * 1.2),
-        }, { duration: 600 });
-      },
       refresh: () => renderer.refresh(),
       zoomIn: () => { void renderer.getCamera().animatedZoom({ duration: 200 }); },
       zoomOut: () => { void renderer.getCamera().animatedUnzoom({ duration: 200 }); },
-      resetView: () => { void renderer.getCamera().animatedReset({ duration: 300 }); },
+      resetView: () => {
+        if (state.current.selected) onSelect(undefined);
+        else void renderer.getCamera().animatedReset({ duration: reducedMotion.matches ? 0 : 300 });
+      },
       layout: applyLayout,
     };
     let dragged: string | null = null, isDragging = false;
@@ -167,6 +220,7 @@ export function GraphCanvas({ data, selected, filter, onSelect, handleRef }: {
       // TouchCaptor also emits downNode. Keep its camera enabled so node taps
       // and one/two-finger gestures continue to use Sigma's native navigation.
       if (!(event.original instanceof MouseEvent) || event.original.button !== 0) return;
+      cancelLayoutAnimation?.();
       dragged = node;
       renderer.getCamera().disable();
     });
@@ -187,9 +241,8 @@ export function GraphCanvas({ data, selected, filter, onSelect, handleRef }: {
     renderer.on("clickStage", () => onSelect(undefined));
     const observer = new ResizeObserver(() => { renderer.resize(); fitNodeSizes(); renderer.refresh(); });
     observer.observe(container.current);
-    return () => { window.removeEventListener("blur", releaseDrag); observer.disconnect(); renderer.kill(); handleRef.current = null; };
+    return () => { cancelLayoutAnimation?.(); window.removeEventListener("blur", releaseDrag); observer.disconnect(); renderer.kill(); handleRef.current = null; };
   }, [data, onSelect, handleRef]);
-  useEffect(() => { handleRef.current?.layout(filter); }, [data, filter, handleRef]);
-  useEffect(() => { handleRef.current?.refresh(); }, [filter, selected, handleRef]);
+  useEffect(() => { handleRef.current?.layout(filter, selected); }, [data, filter, selected, handleRef]);
   return <div ref={container} className="graph-canvas" role="img" aria-label="İlgi alanları, konular, metodolojiler ve projeler arasındaki etkileşimli düşünce haritası" />;
 }
