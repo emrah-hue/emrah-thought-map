@@ -15,6 +15,10 @@ Buna ek olarak ayrı **Metodoloji İlişkileri** veri kaynağı, yönlü `Metodo
 - Konu → Proje
 - Metodoloji → Proje
 - Metodoloji → Metodoloji (`Besler`, `Kapsar`, `Tamamlar`, `Derinleştirir`)
+- Konu ↔ Konu (`İlgili Konular`)
+- Proje ↔ Proje (`İlgili Projeler`)
+
+Konu ve proje içi bağlar yönsüzdür; tek uçta veya iki uçta kayıtlı aynı ilişki tek bağlantı üretir. Kendine, yanlış katmana, eksik ya da gizli kayda giden bağlar atlanır. Seçim ve kategori filtreleri bu bağları da doğrudan komşuluk olarak gösterir; Notion'da bulunmayan bağlantılar türetilmez.
 
 Veri akışı: `Notion → server-only fetcher'lar → normalize edilmiş tipler → gizlilik/arşiv filtresi → public graph DTO → Graphology → çember yerleşimi → Sigma.js`.
 
@@ -58,9 +62,9 @@ Eski `NOTION_TOPICS_DATABASE_ID` ve `NOTION_KNOWLEDGE_DATABASE_ID` artık kullan
 ## Notion şeması
 
 - **İlgi Alanları:** `Ad`, `Özet`, `Konular`, opsiyonel `Gizli`
-- **Konular:** `Ad`, `Özet`, `İlgi Alanları`, `Metodolojiler`, `Projeler`, opsiyonel `Gizli`
+- **Konular:** `Ad`, `Özet`, `İlgi Alanları`, `Metodolojiler`, `Projeler`, opsiyonel `İlgili Konular` (aynı veri kaynağına relation), opsiyonel `Gizli`
 - **Metodolojiler:** `Ad`, `Özet`, `Aşama`, `Konular`, `Projeler`, `Kaynak / Köken`, opsiyonel `Gizli`
-- **Projeler:** `Ad`, `Özet`, `Tür`, `Durum`, `Konular`, `Metodolojiler`, opsiyonel `Gizli`
+- **Projeler:** `Ad`, `Özet`, `Tür`, `Durum`, `Konular`, `Metodolojiler`, opsiyonel `İlgili Projeler` (aynı veri kaynağına relation), opsiyonel `Gizli`
 - **Metodoloji İlişkileri:** `Kaynak Metodoloji`, `Hedef Metodoloji`, `İlişki Türü`, `Açıklama`
 
 Eksik opsiyonel property'ler güvenli varsayılanlara (`false`, `[]`, `""`) normalize edilir. Tanınmayan ilişki türleri ve bozuk satırlar sunucu tanı kaydıyla atlanır.

@@ -2,8 +2,58 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { buildPublicGraph } from "./build-public-graph";
 import type { NormalizedSecondBrain } from "./types";
+import { selectionBranch } from "./selection-branch";
+import { focusLayout } from "./focus-layout";
 
 const empty: NormalizedSecondBrain = { interestAreas: [], topics: [], methodologies: [], projects: [], methodologyRelationships: [] };
+
+test("peer relations are reciprocal, deduplicated and reachable from either endpoint", () => {
+  const topic = { title: "Topic", summary: "", interestAreaIds: [], methodologyIds: [], projectIds: [] };
+  const project = { title: "Project", summary: "", topicIds: [], methodologyIds: [] };
+  const source: NormalizedSecondBrain = { ...empty,
+    topics: [{ ...topic, id: "b", relatedTopicIds: ["a", "a"] }, { ...topic, id: "a", relatedTopicIds: ["b"] }],
+    projects: [{ ...project, id: "q", relatedProjectIds: ["p"] }, { ...project, id: "p", relatedProjectIds: ["q"] }],
+  };
+  const graph = buildPublicGraph(source);
+  assert.deepEqual(graph.edges.map(e => [e.relation, e.source, e.target]), [
+    ["topic-relationship", "a", "b"], ["project-relationship", "p", "q"],
+  ]);
+  for (const [a, b, filter] of [["a", "b", "topics"], ["p", "q", "projects"]] as const) {
+    assert.deepEqual([...selectionBranch(graph, a).directIds], [b]);
+    assert.deepEqual([...selectionBranch(graph, b).directIds], [a]);
+    const layout = focusLayout(graph, filter, a);
+    assert.deepEqual(layout.positions.get(a), { x: 0, y: 0 });
+    const peer = layout.positions.get(b)!;
+    assert.ok(Math.hypot(peer.x, peer.y) >= 180);
+  }
+  const oneSided = structuredClone(source);
+  oneSided.topics[1].relatedTopicIds = [];
+  oneSided.projects[1].relatedProjectIds = [];
+  assert.deepEqual(buildPublicGraph(oneSided).edges, graph.edges);
+});
+
+test("peer relations reject hidden, missing, self and wrong-layer endpoints", () => {
+  const topic = { title: "Topic", summary: "", interestAreaIds: [], methodologyIds: [], projectIds: [] };
+  const project = { title: "Project", summary: "", topicIds: [], methodologyIds: [] };
+  const graph = buildPublicGraph({ ...empty,
+    topics: [{ ...topic, id: "a", relatedTopicIds: ["a", "secret-topic", "missing", "p"] }, { ...topic, id: "secret-topic", hidden: true, relatedTopicIds: ["a"] }],
+    projects: [{ ...project, id: "p", relatedProjectIds: ["p", "secret-project", "missing", "a"] }, { ...project, id: "secret-project", hidden: true, relatedProjectIds: ["p"] }],
+  });
+  assert.equal(graph.edges.length, 0);
+  assert.equal(JSON.stringify(graph).includes("secret"), false);
+});
+
+test("refresh rebuilds changed peer relations without retaining removed links", () => {
+  const topic = { title: "Topic", summary: "", interestAreaIds: [], methodologyIds: [], projectIds: [] };
+  const source: NormalizedSecondBrain = { ...empty, topics: [
+    { ...topic, id: "a", relatedTopicIds: ["b"] }, { ...topic, id: "b" }, { ...topic, id: "c" },
+  ] };
+  assert.equal(buildPublicGraph(source).edges[0].target, "b");
+  source.topics[0].relatedTopicIds = ["c"];
+  assert.equal(buildPublicGraph(source).edges[0].target, "c");
+  source.topics[0].relatedTopicIds = [];
+  assert.equal(buildPublicGraph(source).edges.length, 0);
+});
 
 test("hidden records and archived methodologies never reach the public DTO", () => {
   const graph = buildPublicGraph({

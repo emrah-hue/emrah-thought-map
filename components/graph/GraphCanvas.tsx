@@ -121,11 +121,12 @@ export function GraphCanvas({ data, selected, filter, onSelect, handleRef }: {
       });
     });
     data.edges.forEach(e => {
-      const semantic = e.relation === "methodology-relationship";
+      const semantic = e.relation === "methodology-relationship" || e.relation === "topic-relationship" || e.relation === "project-relationship";
+      const peerClass = e.relation === "topic-relationship" ? "topic" : e.relation === "project-relationship" ? "project" : "methodology";
       const hierarchy = e.relation === "interest-area-topic";
       graph.addEdgeWithKey(e.id, e.source, e.target, {
         ...e,
-        color: paperBlend(semantic ? NODE_COLOR.methodology : "#647265", semantic ? .4 : hierarchy ? .32 : .22),
+        color: paperBlend(semantic ? NODE_COLOR[peerClass] : "#647265", semantic ? .4 : hierarchy ? .32 : .22),
         size: semantic ? 1.05 : hierarchy ? .8 : .55,
       });
     });
