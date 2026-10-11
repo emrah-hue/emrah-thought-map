@@ -1,5 +1,5 @@
 "use client";
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import type { GraphFilter, PublicGraph } from "@/lib/graph/types";
 import { DetailPanel, MapFootnote } from "./DetailPanel";
@@ -14,19 +14,35 @@ const GraphCanvas = dynamic(() => import("./GraphCanvas").then(module => module.
 export function ThoughtMap({ data }: { data: PublicGraph }) {
   const [graph, setGraph] = useState(data);
   const [selected, setSelected] = useState<string>();
+  const [panelExpanded, setPanelExpanded] = useState(false);
   const [filter, setFilter] = useState<GraphFilter>("all");
   const [refreshing, setRefreshing] = useState(false);
   const [refreshStatus, setRefreshStatus] = useState("");
   const refreshInFlight = useRef(false);
   const graphRef = useRef<GraphCanvasHandle | null>(null);
+  const shellRef = useRef<HTMLDivElement>(null);
   const select = useCallback((id?: string) => {
     const target = graph.nodes.find(node => node.id === id);
     if (target) setFilter(current => matchesFilter(target, current) ? current : "all");
     setSelected(id);
+    setPanelExpanded(false);
   }, [graph]);
   const node = graph.nodes.find(n => n.id === selected);
   const branch = useMemo(() => selectionBranch(graph, selected), [graph, selected]);
   const neighbors = graph.nodes.filter(n => n.id !== selected && branch.nodeIds.has(n.id));
+
+  useEffect(() => {
+    const shell = shellRef.current;
+    const panel = shell?.querySelector<HTMLElement>(".panel:not(.panel-empty)");
+    if (!shell || !panel) return;
+    // Reserve the panel's actual height, including padding and safe-area space.
+    // CSS only consumes this value on mobile; Sigma observes the canvas resize.
+    const measure = () => shell.style.setProperty("--detail-panel-height", `${Math.ceil(panel.getBoundingClientRect().height)}px`);
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(panel);
+    return () => { observer.disconnect(); shell.style.removeProperty("--detail-panel-height"); };
+  }, [node?.id]);
 
   async function refreshGraph() {
     if (refreshInFlight.current) return;
@@ -51,7 +67,7 @@ export function ThoughtMap({ data }: { data: PublicGraph }) {
     }
   }
 
-  return <div className="shell" data-selected={Boolean(node)}>
+  return <div ref={shellRef} className="shell" data-selected={Boolean(node)} data-panel-expanded={Boolean(node) && panelExpanded}>
     <section className="graph-stage">
       <header className="masthead">
         <p className="eyebrow">EMRAH AKBALABAN’IN DÜŞÜNCE HARİTASI</p>
@@ -77,6 +93,6 @@ export function ThoughtMap({ data }: { data: PublicGraph }) {
         <MapFootnote className="map-footnote-mobile" />
       </div>
     </section>
-    <DetailPanel node={node} neighbors={neighbors} directIds={branch.directIds} onSelect={select} onClose={() => select(undefined)} />
+    <DetailPanel key={node?.id ?? "empty"} node={node} neighbors={neighbors} directIds={branch.directIds} expanded={panelExpanded} onToggleExpanded={() => setPanelExpanded(value => !value)} onSelect={select} onClose={() => select(undefined)} />
   </div>;
 }
