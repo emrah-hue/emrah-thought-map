@@ -65,3 +65,38 @@ test("a high-degree neighborhood keeps every real connection, with finite and di
   assert.equal(new Set([...layout.positions.values()].map(p => `${p.x},${p.y}`)).size, 61);
   assert.ok(Number.isFinite(layout.radius) && Number.isFinite(layout.sizeRatio));
 });
+
+test("dense context has two staggered regular rings and a separate collision size cap", () => {
+  const context = Array.from({ length: 72 }, (_, i) => ({ ...data.nodes[4], id: `outer-${i}`, label: `Dış ${i}`, size: 24 }));
+  const graph = { ...data, nodes: [...data.nodes.slice(0, 4), ...context] };
+  const layout = focusLayout(graph, "all", "center");
+  const sparse = focusLayout(data, "all", "center");
+  assert.equal(layout.sizeRatio, sparse.sizeRatio);
+  for (const node of data.nodes.slice(0, 4)) assert.deepEqual(layout.positions.get(node.id), sparse.positions.get(node.id));
+  const rings = new Map<number, number[]>();
+  for (const node of context) {
+    const point = layout.positions.get(node.id)!;
+    const radius = Math.round(Math.hypot(point.x, point.y));
+    const angles = rings.get(radius) ?? [];
+    angles.push((Math.atan2(point.y, point.x) + Math.PI * 2) % (Math.PI * 2));
+    rings.set(radius, angles);
+  }
+  assert.equal(rings.size, 2);
+  const ringAngles = [...rings.values()];
+  for (const angles of ringAngles) {
+    assert.equal(angles.length, 36);
+    angles.sort((a, b) => a - b);
+    angles.forEach((angle, i) => near((angles[(i + 1) % angles.length] - angle + Math.PI * 2) % (Math.PI * 2), Math.PI * 2 / angles.length));
+  }
+  near(ringAngles[1][0] - ringAngles[0][0], Math.PI / 36);
+  assert.ok(layout.contextSizeRatio! > 0);
+  for (let i = 0; i < context.length; i++) {
+    for (const other of context.slice(i + 1)) {
+      const a = layout.positions.get(context[i].id)!;
+      const b = layout.positions.get(other.id)!;
+      const diameterSum = .65 * (context[i].size + other.size) * layout.contextSizeRatio! * .8;
+      assert.ok(Math.hypot(a.x - b.x, a.y - b.y) > diameterSum);
+    }
+  }
+  assert.deepEqual(focusLayout({ ...graph, nodes: [...graph.nodes].reverse() }, "all", "center"), layout);
+});
