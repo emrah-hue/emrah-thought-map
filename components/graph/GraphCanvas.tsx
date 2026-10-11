@@ -165,7 +165,7 @@ export function GraphCanvas({ data, selected, filter, onSelect, handleRef }: {
         if (!selected || !graph.hasNode(selected)) return attrs;
         if (!branch.edgeIds.has(id)) {
           if (!branch.contextEdgeIds.has(id)) return { ...attrs, hidden: true };
-          const contrast = Math.max(.16, .32 / Math.sqrt(Math.max(1, branch.contextEdgeIds.size / 48)));
+          const contrast = Math.max(.12, .24 / Math.sqrt(Math.max(1, branch.contextEdgeIds.size / 48)));
           return { ...attrs, color: paperBlend("#647265", contrast), size: .85, zIndex: 0 };
         }
         return {
