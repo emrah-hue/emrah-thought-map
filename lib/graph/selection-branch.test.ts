@@ -83,3 +83,20 @@ test("links between neighbors stay hidden and selection is independent of API ed
   assert.deepEqual(sorted(reversed.nodeIds), sorted(expected.nodeIds));
   assert.deepEqual(sorted(reversed.edgeIds), sorted(expected.edgeIds));
 });
+
+test("context links connect a direct neighbor to an outer node without expanding selection", () => {
+  const branch = selectionBranch(data, "learning");
+  assert.deepEqual(sorted(branch.contextEdgeIds), ["checkup-navigator", "checkup-peer", "work-other-topic"]);
+  assert.ok(!branch.nodeIds.has("navigator"));
+  assert.ok(!branch.contextEdgeIds.has("other-topic-navigator"));
+  assert.ok(!branch.contextEdgeIds.has("peer-distant-peer"));
+  const graph = { ...data, edges: [...data.edges,
+    edge("work", "checkup", "topic-methodology"), edge("checkup", "missing", "methodology-project"),
+    edge("checkup", "checkup", "methodology-relationship"),
+  ] };
+  assert.deepEqual(sorted(selectionBranch(graph, "learning").contextEdgeIds), sorted(branch.contextEdgeIds));
+  const refreshed = { ...graph, edges: graph.edges.filter(e => e.id !== "checkup-peer") };
+  assert.ok(!selectionBranch(refreshed, "learning").contextEdgeIds.has("checkup-peer"));
+  assert.equal(selectionBranch(data, "learning", "topics").contextEdgeIds.size, 0);
+  assert.equal(selectionBranch(data, "learning", "projects").nodeIds.size, 0);
+});

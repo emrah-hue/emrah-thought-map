@@ -103,15 +103,16 @@ export function GraphCanvas({ data, selected, filter, onSelect, handleRef }: {
   handleRef: React.MutableRefObject<GraphCanvasHandle | null>;
 }) {
   const container = useRef<HTMLDivElement>(null);
-  const branch = useMemo(() => selectionBranch(data, selected), [data, selected]);
+  const branch = useMemo(() => selectionBranch(data, selected, filter), [data, selected, filter]);
   const state = useRef({ selected, filter, branch });
   state.current = { selected, filter, branch };
   useEffect(() => {
     if (!container.current) return;
     const graph = new Graph({ multi: false, type: "directed" });
     const initial = circularLayout(data, "all");
-    let currentLayout = initial;
+    let currentLayout: ReturnType<typeof focusLayout> = initial;
     let sizeScale = 1;
+    let contextSizeScale = 1;
     let cancelLayoutAnimation: (() => void) | undefined;
     const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
     data.nodes.forEach(n => {
@@ -153,7 +154,7 @@ export function GraphCanvas({ data, selected, filter, onSelect, handleRef }: {
           // Small neighborhoods show all labels; dense ones keep Sigma's grid.
           highlighted: active, forceLabel: active || (near && branch.nodeIds.size <= 8),
           zIndex: active ? 3 : near ? 2 : 0,
-          size: size * (active ? 1.2 : near ? 1.06 : .65),
+          size: near ? size * (active ? 1.2 : 1.06) : attrs.size * contextSizeScale * .65,
         };
       },
       edgeReducer: (id, attrs) => {
@@ -162,7 +163,11 @@ export function GraphCanvas({ data, selected, filter, onSelect, handleRef }: {
         if (!matchesFilter(graph.getNodeAttributes(s) as PublicGraphNode, filter) ||
             !matchesFilter(graph.getNodeAttributes(t) as PublicGraphNode, filter)) return { ...attrs, hidden: true };
         if (!selected || !graph.hasNode(selected)) return attrs;
-        if (!branch.edgeIds.has(id)) return { ...attrs, hidden: true };
+        if (!branch.edgeIds.has(id)) {
+          if (!branch.contextEdgeIds.has(id)) return { ...attrs, hidden: true };
+          const contrast = Math.max(.16, .32 / Math.sqrt(Math.max(1, branch.contextEdgeIds.size / 48)));
+          return { ...attrs, color: paperBlend("#647265", contrast), size: .85, zIndex: 0 };
+        }
         return {
           ...attrs,
           color: paperBlend(graph.getNodeAttribute(selected, "color"), .55),
@@ -189,6 +194,7 @@ export function GraphCanvas({ data, selected, filter, onSelect, handleRef }: {
       const { width, height } = renderer.getDimensions();
       const pixelsPerUnit = Math.max(1, Math.min(width, height) - 100) / (2 * currentLayout.radius);
       sizeScale = Math.min(1, currentLayout.sizeRatio * pixelsPerUnit * .8);
+      contextSizeScale = Math.min(sizeScale, (currentLayout.contextSizeRatio ?? Infinity) * pixelsPerUnit * .8);
     };
     const applyLayout = (filter: GraphFilter, selected?: string) => {
       cancelLayoutAnimation?.();
