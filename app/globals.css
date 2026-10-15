@@ -1,6 +1,6 @@
 @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=Manrope:wght@400;500;600&display=swap');
 
-:root { --paper:#f2f0e9; --ink:#20231f; --muted:#777970; --line:rgba(32,35,31,.15); --sage:#647265; --rust:#a75b3e; }
+:root { --paper:#faf9f6; --ink:#20231f; --muted:#777970; --line:rgba(32,35,31,.15); --sage:#647265; --rust:#a75b3e; }
 * { box-sizing:border-box; }
 html,body,main { width:100%; height:100%; margin:0; overflow:hidden; }
 body { background:var(--paper); color:var(--ink); font-family:"DM Sans",sans-serif; }
@@ -66,7 +66,7 @@ button:focus-visible,input:focus-visible { outline:2px solid var(--rust); outlin
 @media(max-width:800px){
   .shell { display:block; min-height:0; }
   .graph-stage { height:100dvh; border:0; }
-  .graph-stage::before { content:""; position:absolute; top:0; left:0; right:0; height:115px; z-index:2; pointer-events:none; background:linear-gradient(to bottom,rgba(242,240,233,.8),rgba(242,240,233,.5) 70%,rgba(242,240,233,0)); }
+  .graph-stage::before { content:""; position:absolute; top:0; left:0; right:0; height:115px; z-index:2; pointer-events:none; background:linear-gradient(to bottom,rgba(250,249,246,.8),rgba(250,249,246,.5) 70%,rgba(250,249,246,0)); }
   .graph-canvas { top:0; bottom:calc(180px + env(safe-area-inset-bottom)); touch-action:none; }
   .masthead { position:relative; top:auto; left:auto; margin:12px 16px 0; }
   .masthead p { display:none; }
