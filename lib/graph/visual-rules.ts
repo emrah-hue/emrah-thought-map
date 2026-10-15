@@ -16,7 +16,7 @@ export const NODE_COLOR: Record<NodeClass, string> = {
 
 // Blend against the paper instead of using WebGL alpha, so crossing edges
 // stay quiet and Sigma's premultiplied blending cannot brighten the palette.
-export const PAPER_COLOR = "#f2f0e9";
+export const PAPER_COLOR = "#faf9f6";
 export function paperBlend(color: string, opacity: number): string {
   const channels = [1, 3, 5].map((offset) => {
     const ink = parseInt(color.slice(offset, offset + 2), 16);
